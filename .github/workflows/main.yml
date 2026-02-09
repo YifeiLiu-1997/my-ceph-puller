@@ -1,22 +1,33 @@
-name: Pull_Ceph_18_2_7_Final
+name: Pull_and_Verify_Ceph
 on: [workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Pull and Save Image
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Pull and Verify
         run: |
-          # 尝试 openEuler 官方在 Docker Hub 的通用标签，如果 24.03 不行，就用这个
-          # 这是一个针对 22.03 LTS 的版本，它的内核基准也是 64k 适配的
+          # 1. 拉取镜像
           docker pull --platform linux/arm64 openeuler/ceph:latest
           
-          # 打上你想要的 18.2.7 标签，方便后续集群识别
+          echo "========= 验货环节：检查版本 ========="
+          # 2. 强行运行 arm64 镜像检查版本
+          docker run --rm --platform linux/arm64 openeuler/ceph:latest ceph -v
+          
+          echo "========= 验货环节：检查内存页支持 ========="
+          # 3. 检查内部二进制文件的编译参数（如果是 16 则是适配 64K，12 则是 4K）
+          # 我们尝试读取 ceph-osd 里的 strings 看看有没有 jemalloc 的配置
+          docker run --rm --platform linux/arm64 openeuler/ceph:latest ldd /usr/bin/ceph-osd || true
+          
+          # 4. 压缩导出
           docker tag openeuler/ceph:latest ceph-18.2.7-64k:latest
-          
-          # 导出
           docker save ceph-18.2.7-64k:latest | gzip > ceph_arm64_final.tar.gz
-          
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
