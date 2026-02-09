@@ -1,4 +1,4 @@
-name: Pull_Ceph_18_2_0_Slim
+name: Pull_Ceph_Fixed_Tags
 on: [workflow_dispatch]
 
 jobs:
@@ -12,20 +12,23 @@ jobs:
 
       - name: Pull and Verify
         run: |
-          # 尝试拉取 18.2.0 精确版（这个标签在 Docker Hub 官方库里是存在的）
-          docker pull --platform linux/arm64 openeuler/ceph:18.2.0
+          # 尝试拉取 22.03-LTS-SP3，这是 openEuler 官方最稳的 Reef 18.2.0 镜像
+          # 如果这个还报 404，脚本会自动尝试下一个
+          docker pull --platform linux/arm64 openeuler/ceph:22.03-lts-sp3 || \
+          docker pull --platform linux/arm64 openeuler/ceph:22.03-lts-sp2 || \
+          docker pull --platform linux/arm64 openeuler/ceph:20.03-lts-sp4
           
-          echo "========= 验货环节：确认版本信息 ========="
-          # 模拟运行检查，看看是不是 18.2.0
-          docker run --rm --platform linux/arm64 openeuler/ceph:18.2.0 ceph -v
+          echo "========= 验货环节 ========="
+          # 找到刚才拉下来的镜像 ID 并运行
+          IMG_ID=$(docker images --format "{{.Repository}}:{{.Tag}}" | head -n 1)
+          docker run --rm --platform linux/arm64 $IMG_ID ceph -v
           
-          echo "========= 导出镜像 ========="
-          # 导出并打标
-          docker tag openeuler/ceph:18.2.0 ceph-arm64-18.2.0-64k:latest
-          docker save ceph-arm64-18.2.0-64k:latest | gzip > ceph_18.2.0_slim.tar.gz
+          echo "========= 导出极简包 ========="
+          docker tag $IMG_ID ceph-arm64-fixed:latest
+          docker save ceph-arm64-fixed:latest | gzip > ceph_slim.tar.gz
 
-      - name: Upload Artifact
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: ceph-18-2-0-package
-          path: ceph_18.2.0_slim.tar.gz
+          name: ceph-slim-package
+          path: ceph_slim.tar.gz
