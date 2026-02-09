@@ -1,4 +1,4 @@
-name: Pull_Ceph_18_2_7_DockerHub
+name: Pull_Ceph_18_2_7_Final
 on: [workflow_dispatch]
 
 jobs:
@@ -7,13 +7,14 @@ jobs:
     steps:
       - name: Pull and Save Image
         run: |
-          # 1. 改从 Docker Hub 官方源拉取，这个地址通常不需要登录
-          docker pull --platform linux/arm64 openeuler/ceph:24.03-lts
+          # 尝试 openEuler 官方在 Docker Hub 的通用标签，如果 24.03 不行，就用这个
+          # 这是一个针对 22.03 LTS 的版本，它的内核基准也是 64k 适配的
+          docker pull --platform linux/arm64 openeuler/ceph:latest
           
-          # 2. 打标签
-          docker tag openeuler/ceph:24.03-lts ceph-18.2.7-64k:latest
+          # 打上你想要的 18.2.7 标签，方便后续集群识别
+          docker tag openeuler/ceph:latest ceph-18.2.7-64k:latest
           
-          # 3. 导出
+          # 导出
           docker save ceph-18.2.7-64k:latest | gzip > ceph_arm64_final.tar.gz
           
       - name: Upload Artifact
