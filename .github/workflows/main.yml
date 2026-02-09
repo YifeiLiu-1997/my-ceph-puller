@@ -1,24 +1,31 @@
-name: Pull_Ceph_Production_Version
+name: Pull_Ceph_18_2_0_Slim
 on: [workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Pull and Verify
         run: |
-          # 1. 使用 22.03-lts 标签，这是官方瘦身后的生产镜像
-          docker pull --platform linux/arm64 hub.atomgit.com/openeuler/ceph:22.03-lts
+          # 尝试拉取 18.2.0 精确版（这个标签在 Docker Hub 官方库里是存在的）
+          docker pull --platform linux/arm64 openeuler/ceph:18.2.0
           
-          # 2. 打印版本（最后确认一眼）
-          docker run --rm --platform linux/arm64 hub.atomgit.com/openeuler/ceph:22.03-lts ceph -v
+          echo "========= 验货环节：确认版本信息 ========="
+          # 模拟运行检查，看看是不是 18.2.0
+          docker run --rm --platform linux/arm64 openeuler/ceph:18.2.0 ceph -v
           
-          # 3. 压缩导出（这个包很小，绝对不会报磁盘满）
-          docker tag hub.atomgit.com/openeuler/ceph:22.03-lts ceph-18.2.7-arm64:latest
-          docker save ceph-18.2.7-arm64:latest | gzip > ceph_prod_arm64.tar.gz
-          
+          echo "========= 导出镜像 ========="
+          # 导出并打标
+          docker tag openeuler/ceph:18.2.0 ceph-arm64-18.2.0-64k:latest
+          docker save ceph-arm64-18.2.0-64k:latest | gzip > ceph_18.2.0_slim.tar.gz
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ceph-prod-package
-          path: ceph_prod_arm64.tar.gz
+          name: ceph-18-2-0-package
+          path: ceph_18.2.0_slim.tar.gz
