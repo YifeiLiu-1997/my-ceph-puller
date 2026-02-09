@@ -1,0 +1,23 @@
+name: Pull_Ceph_18_2_7
+on: [workflow_dispatch] # 允许手动点击运行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull and Save Image
+        run: |
+          # 1. 从华为官方源拉取适配 64k 的 18.2.7 镜像
+          docker pull --platform linux/arm64 swr.cn-north-4.myhuaweicloud.com/openeuler/ceph:24.03-lts
+          
+          # 2. 给它打个你喜欢的标签
+          docker tag swr.cn-north-4.myhuaweicloud.com/openeuler/ceph:24.03-lts ceph-18.2.7-64k:latest
+          
+          # 3. 导出成 tar 包并压缩（为了下载快点）
+          docker save ceph-18.2.7-64k:latest | gzip > ceph_arm64_final.tar.gz
+          
+      - name: Upload to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: ceph-package  # 下载时的文件夹名
+          path: ceph_arm64_final.tar.gz
