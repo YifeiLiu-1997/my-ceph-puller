@@ -1,34 +1,17 @@
-name: Pull_Ceph_Fixed_Tags
+name: Get_Stable_18_2_0
 on: [workflow_dispatch]
-
 jobs:
-  build:
+  pull:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
-      - name: Pull and Verify
+      - name: Pull from SWR
         run: |
-          # 尝试拉取 22.03-LTS-SP3，这是 openEuler 官方最稳的 Reef 18.2.0 镜像
-          # 如果这个还报 404，脚本会自动尝试下一个
-          docker pull --platform linux/arm64 openeuler/ceph:22.03-lts-sp3 || \
-          docker pull --platform linux/arm64 openeuler/ceph:22.03-lts-sp2 || \
-          docker pull --platform linux/arm64 openeuler/ceph:20.03-lts-sp4
-          
-          echo "========= 验货环节 ========="
-          # 找到刚才拉下来的镜像 ID 并运行
-          IMG_ID=$(docker images --format "{{.Repository}}:{{.Tag}}" | head -n 1)
-          docker run --rm --platform linux/arm64 $IMG_ID ceph -v
-          
-          echo "========= 导出极简包 ========="
-          docker tag $IMG_ID ceph-arm64-fixed:latest
-          docker save ceph-arm64-fixed:latest | gzip > ceph_slim.tar.gz
-
+          # 这是一个稳定的生产级标签，体积绝对不会是 12G
+          docker pull --platform linux/arm64 swr.cn-north-4.myhuaweicloud.com/openeuler/ceph:22.03-lts-sp3
+          docker tag swr.cn-north-4.myhuaweicloud.com/openeuler/ceph:22.03-lts-sp3 ceph-stable-18:latest
+          docker save ceph-stable-18:latest | gzip > ceph_stable.tar.gz
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: ceph-slim-package
-          path: ceph_slim.tar.gz
+          name: ceph-stable
+          path: ceph_stable.tar.gz
