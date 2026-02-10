@@ -1,17 +1,28 @@
-name: Get_Stable_18_2_0
+name: Pull_From_AtomHub_Official
 on: [workflow_dispatch]
+
 jobs:
   pull:
     runs-on: ubuntu-latest
     steps:
-      - name: Pull from SWR
+      - name: Pull and Export
         run: |
-          # 这是一个稳定的生产级标签，体积绝对不会是 12G
-          docker pull --platform linux/arm64 swr.cn-north-4.myhuaweicloud.com/openeuler/ceph:22.03-lts-sp3
-          docker tag swr.cn-north-4.myhuaweicloud.com/openeuler/ceph:22.03-lts-sp3 ceph-stable-18:latest
-          docker save ceph-stable-18:latest | gzip > ceph_stable.tar.gz
+          # 1. 尝试拉取 24.03-LTS（这通常对应 Ceph 18.2.7）
+          # 如果不成功，自动切换到 22.03-LTS-SP3（对应 Ceph 18.2.0）
+          docker pull --platform linux/arm64 hub.atomgit.com/openeuler/ceph:24.03-lts || \
+          docker pull --platform linux/arm64 hub.atomgit.com/openeuler/ceph:22.03-lts-sp3
+          
+          # 2. 找到刚才拉下来的镜像，打上标签
+          IMG_NAME=$(docker images --format "{{.Repository}}:{{.Tag}}" | head -n 1)
+          echo "Successfully pulled: $IMG_NAME"
+          
+          docker tag $IMG_NAME ceph-arm64-stable:latest
+          
+          # 3. 导出并压缩
+          docker save ceph-arm64-stable:latest | gzip > ceph_stable_arm64.tar.gz
+          
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: ceph-stable
-          path: ceph_stable.tar.gz
+          name: ceph-stable-package
+          path: ceph_stable_arm64.tar.gz
