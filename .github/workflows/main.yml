@@ -1,28 +1,45 @@
-name: Pull_From_AtomHub_Official
+name: Build_Ceph_From_Base
 on: [workflow_dispatch]
 
 jobs:
-  pull:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Pull and Export
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build Custom Ceph Image
         run: |
-          # 1. 尝试拉取 24.03-LTS（这通常对应 Ceph 18.2.7）
-          # 如果不成功，自动切换到 22.03-LTS-SP3（对应 Ceph 18.2.0）
-          docker pull --platform linux/arm64 hub.atomgit.com/openeuler/ceph:24.03-lts || \
-          docker pull --platform linux/arm64 hub.atomgit.com/openeuler/ceph:22.03-lts-sp3
+          echo "========= 1. 拉取 OpenEuler 24.03 基础系统镜像 (绝对存在) ========="
+          docker pull --platform linux/arm64 openeuler/openeuler:24.03-lts
           
-          # 2. 找到刚才拉下来的镜像，打上标签
-          IMG_NAME=$(docker images --format "{{.Repository}}:{{.Tag}}" | head -n 1)
-          echo "Successfully pulled: $IMG_NAME"
+          echo "========= 2. 启动容器并安装 Ceph (现场制作) ========="
+          # 启动一个容器，在后台运行
+          docker run -d --name builder --platform linux/arm64 openeuler/openeuler:24.03-lts sleep 3600
           
-          docker tag $IMG_NAME ceph-arm64-stable:latest
+          # 更新源并安装 ceph 和 ceph-osd
+          # OpenEuler 24.03 的官方源里自带 Ceph 18.x，且是 64k 适配的
+          docker exec builder dnf update -y
+          docker exec builder dnf install -y ceph ceph-osd ceph-mon ceph-mgr
           
-          # 3. 导出并压缩
-          docker save ceph-arm64-stable:latest | gzip > ceph_stable_arm64.tar.gz
+          echo "========= 3. 验货环节 (在容器内检查版本) ========="
+          docker exec builder ceph -v
+          docker exec builder ceph-osd --version
           
-      - name: Upload
+          echo "========= 4. 打包成新镜像 ========="
+          # 把装好软件的容器保存为新镜像
+          docker commit builder ceph-18.2.7-custom:latest
+          
+          # 检查大小
+          docker images | grep ceph
+          
+          # 导出
+          docker save ceph-18.2.7-custom:latest | gzip > ceph_custom_build.tar.gz
+
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ceph-stable-package
-          path: ceph_stable_arm64.tar.gz
+          name: ceph-custom-package
+          path: ceph_custom_build.tar.gz
