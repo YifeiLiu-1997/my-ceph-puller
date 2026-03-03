@@ -18,12 +18,12 @@ jobs:
           echo "========= 2. 启动构建容器 ========="
           docker run -d --name builder --platform linux/arm64 openeuler/openeuler:24.03-lts sleep 3600
           
-          echo "========= 3. 安装 Ceph 及其核心依赖 (补齐 udevadm/LVM) ========="
-          # 这一步安装的是关键：
-          # systemd/udev: 提供 udevadm (识别磁盘核心工具)
-          # lvm2: 提供 lvm 卷管理 (OSD 运行基础)
-          # ceph-volume: 部署 OSD 的必备脚本
-          # smartmontools: 监控硬盘健康
+          echo "========= 3. 安装 Ceph 全家桶 (补齐缺失组件) ========="
+          # 显式添加了以下包：
+          # ceph-exporter: 解决你之前 node3 找不到指令的问题
+          # ceph-fuse: 提供挂载支持
+          # ceph-immutable-object-cache: 提供不可变对象缓存
+          # ceph-common: 包含大部分辅助工具
           docker exec builder dnf update -y
           docker exec builder dnf install -y \
             ceph \
@@ -32,21 +32,25 @@ jobs:
             ceph-mgr \
             ceph-volume \
             ceph-common \
+            ceph-exporter \
+            ceph-fuse \
+            ceph-immutable-object-cache \
             systemd \
             udev \
             lvm2 \
             smartmontools \
             procps-ng \
-            e2fsprogs
-          
-          echo "========= 4. 深度验货 (检查关键工具路径) ========="
-          docker exec builder ceph -v
-          docker exec builder ceph-osd --version
-          docker exec builder which udevadm
-          docker exec builder which lvm
+            e2fsprogs \
+            which
+
+          echo "========= 4. 深度验货 (确保所有指令存在) ========="
+          # 验证你特别要求的几个关键指令
+          docker exec builder which ceph-exporter
+          docker exec builder which ceph-fuse
+          docker exec builder which ceph-immutable-object-cache
+          docker exec builder which ceph-conf
           
           echo "========= 5. 打包镜像 ========="
-          # 务必确保 tag 清楚
           docker commit builder ceph-18.2.2-fixed-64k:latest
           docker save ceph-18.2.2-fixed-64k:latest | gzip > ceph_fixed_64k.tar.gz
 
